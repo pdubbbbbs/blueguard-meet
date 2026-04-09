@@ -296,6 +296,25 @@ export function setupSocketIO(httpServer: HttpServer) {
       }
     });
 
+    // Hand raise (any participant)
+    socket.on("hand-raise", (data: { roomId: string; raised: boolean }) => {
+      if (!currentRoom || currentRoom !== data.roomId) return;
+      socket.to(data.roomId).emit("hand-raise", {
+        socketId: socket.id,
+        raised: !!data.raised,
+      });
+    });
+
+    // Reactions (any participant)
+    socket.on("reaction", (data: { roomId: string; emoji: string; from: string }) => {
+      if (!currentRoom || currentRoom !== data.roomId) return;
+      socket.to(data.roomId).emit("reaction", {
+        socketId: socket.id,
+        emoji: sanitize(data.emoji, 4),
+        from: sanitize(data.from, 100),
+      });
+    });
+
     // Host: end meeting for all
     socket.on("end-meeting", (data: { roomId: string }) => {
       const room = rooms.get(data.roomId);

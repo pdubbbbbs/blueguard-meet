@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { MicOff, VideoOff, Crown } from "lucide-react";
+import { MicOff, VideoOff, Crown, Hand, Pin } from "lucide-react";
 
 interface VideoTileProps {
   stream?: MediaStream;
@@ -10,6 +10,9 @@ interface VideoTileProps {
   isLocal?: boolean;
   onRemove?: () => void;
   showRemove?: boolean;
+  handRaised?: boolean;
+  onPin?: () => void;
+  isPinned?: boolean;
 }
 
 export function VideoTile({
@@ -21,6 +24,9 @@ export function VideoTile({
   isLocal = false,
   onRemove,
   showRemove = false,
+  handRaised = false,
+  onPin,
+  isPinned = false,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -31,7 +37,7 @@ export function VideoTile({
   }, [stream]);
 
   return (
-    <div className="video-tile aspect-video relative group">
+    <div className={`video-tile aspect-video relative group ${handRaised ? "ring-2 ring-yellow-400/50" : ""}`}>
       {stream && videoEnabled ? (
         <video
           ref={videoRef}
@@ -48,10 +54,32 @@ export function VideoTile({
               {displayName.charAt(0).toUpperCase()}
             </span>
           </div>
-          {!videoEnabled && (
-            <VideoOff className="w-4 h-4 text-slate-600 mt-1" />
-          )}
+          {!videoEnabled && <VideoOff className="w-4 h-4 text-slate-600 mt-1" />}
         </div>
+      )}
+
+      {/* Hand raised indicator */}
+      {handRaised && (
+        <div className="absolute top-2 left-2 animate-bounce">
+          <div className="w-8 h-8 rounded-full bg-yellow-500/20 backdrop-blur-sm flex items-center justify-center">
+            <Hand className="w-4 h-4 text-yellow-400" />
+          </div>
+        </div>
+      )}
+
+      {/* Pin button */}
+      {onPin && (
+        <button
+          onClick={onPin}
+          className={`absolute top-2 right-2 w-7 h-7 rounded-md flex items-center justify-center transition-all ${
+            isPinned
+              ? "bg-blue-500/30 text-blue-400"
+              : "opacity-0 group-hover:opacity-100 bg-black/50 text-white hover:bg-blue-500/30"
+          }`}
+          title={isPinned ? "Unpin" : "Pin"}
+        >
+          <Pin className="w-3.5 h-3.5" />
+        </button>
       )}
 
       {/* Name label */}
@@ -72,7 +100,7 @@ export function VideoTile({
       {showRemove && !isLocal && onRemove && (
         <button
           onClick={onRemove}
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/80 hover:bg-red-500 text-white text-xs px-2 py-1 rounded-md"
+          className="absolute top-2 right-10 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/80 hover:bg-red-500 text-white text-xs px-2 py-1 rounded-md"
         >
           Remove
         </button>
