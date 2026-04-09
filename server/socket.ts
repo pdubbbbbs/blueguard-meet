@@ -15,8 +15,29 @@ interface ChatMessage {
   timestamp: number;
 }
 
-// Room state: roomId -> Map<socketId, Participant>
-const rooms = new Map<string, Map<string, Participant>>();
+interface RoomState {
+  participants: Map<string, Participant>;
+  locked: boolean;
+  chatEnabled: boolean;
+  startedAt: number;
+  waitingRoom: Socket[];
+}
+
+// Room state: roomId -> RoomState
+const rooms = new Map<string, RoomState>();
+
+function getOrCreateRoom(roomId: string): RoomState {
+  if (!rooms.has(roomId)) {
+    rooms.set(roomId, {
+      participants: new Map(),
+      locked: false,
+      chatEnabled: true,
+      startedAt: Date.now(),
+      waitingRoom: [],
+    });
+  }
+  return rooms.get(roomId)!;
+}
 
 // Connection rate limiting: IP -> { count, resetAt }
 const connectionRateLimit = new Map<string, { count: number; resetAt: number }>();
@@ -95,7 +116,7 @@ export function setupSocketIO(httpServer: HttpServer) {
       const roomId = sanitize(data.roomId, 36);
       const displayName = sanitize(data.displayName, 100);
 
-      // Server-side host verification: only grant host if valid hostSecret provided
+      // Server-side host verification
       let isHost = false;
       if (data.isHost && data.hostSecret) {
         try {
@@ -105,35 +126,51 @@ export function setupSocketIO(httpServer: HttpServer) {
         }
       }
 
-      // Get or create room
-      if (!rooms.has(roomId)) {
-        rooms.set(roomId, new Map());
+      const room = getOrCreateRoom(roomId);
+
+      // If room is locked and user is not host, put in waiting room
+      if (room.locked && !isHost) {
+        room.waitingRoom.push(socket);
+        socket.emit("waiting-room", { message: "The host has locked this meeting. Please wait." });
+        // Notify host about waiting participant
+        for (const [, p] of room.participants) {
+          if (p.isHost) {
+            io.to(p.socketId).emit("waiting-room-update", {
+              waiting: room.waitingRoom.map((s, i) => ({ id: i, socketId: s.id, displayName })),
+            });
+          }
+        }
+        return;
       }
-      const room = rooms.get(roomId)!;
 
       // Enforce max 10 participants
-      if (room.size >= 10) {
+      if (room.participants.size >= 10) {
         socket.emit("room-full");
         return;
       }
 
       // Store participant
       const participant: Participant = { socketId: socket.id, displayName, isHost };
-      room.set(socket.id, participant);
+      room.participants.set(socket.id, participant);
       currentRoom = roomId;
 
       // Join socket.io room
       socket.join(roomId);
 
+      // Send room config to new joiner
+      socket.emit("room-config", {
+        locked: room.locked,
+        chatEnabled: room.chatEnabled,
+        startedAt: room.startedAt,
+      });
+
       // Notify existing participants about new peer
-      const existingParticipants = Array.from(room.entries())
+      const existingParticipants = Array.from(room.participants.entries())
         .filter(([sid]) => sid !== socket.id)
         .map(([sid, p]) => ({ socketId: sid, displayName: p.displayName, isHost: p.isHost }));
 
-      // Send existing participants to the new joiner
       socket.emit("room-participants", existingParticipants);
 
-      // Notify others about the new participant
       socket.to(roomId).emit("participant-joined", {
         socketId: socket.id,
         displayName,
@@ -168,10 +205,13 @@ export function setupSocketIO(httpServer: HttpServer) {
 
     // Chat messages
     socket.on("chat-message", (data: { roomId: string; text: string; sender: string }) => {
-      // Only allow messages from participants in the room
       if (!currentRoom || currentRoom !== data.roomId) return;
       const room = rooms.get(data.roomId);
-      if (!room || !room.has(socket.id)) return;
+      if (!room || !room.participants.has(socket.id)) return;
+      if (!room.chatEnabled) {
+        socket.emit("error", { message: "Chat is disabled by the host." });
+        return;
+      }
 
       const msg: ChatMessage = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -192,23 +232,86 @@ export function setupSocketIO(httpServer: HttpServer) {
       });
     });
 
-    // Host controls: end meeting for all
+    // Host: lock/unlock room
+    socket.on("lock-room", (data: { roomId: string; locked: boolean }) => {
+      const room = rooms.get(data.roomId);
+      if (!room) return;
+      const participant = room.participants.get(socket.id);
+      if (!participant?.isHost) return;
+      room.locked = !!data.locked;
+      io.to(data.roomId).emit("room-config-update", { locked: room.locked });
+    });
+
+    // Host: enable/disable chat
+    socket.on("toggle-chat", (data: { roomId: string; enabled: boolean }) => {
+      const room = rooms.get(data.roomId);
+      if (!room) return;
+      const participant = room.participants.get(socket.id);
+      if (!participant?.isHost) return;
+      room.chatEnabled = !!data.enabled;
+      io.to(data.roomId).emit("room-config-update", { chatEnabled: room.chatEnabled });
+    });
+
+    // Host: mute a participant
+    socket.on("mute-participant", (data: { roomId: string; targetSocketId: string }) => {
+      const room = rooms.get(data.roomId);
+      if (!room) return;
+      const participant = room.participants.get(socket.id);
+      if (!participant?.isHost) return;
+      io.to(data.targetSocketId).emit("host-muted-you");
+    });
+
+    // Host: mute all
+    socket.on("mute-all", (data: { roomId: string }) => {
+      const room = rooms.get(data.roomId);
+      if (!room) return;
+      const participant = room.participants.get(socket.id);
+      if (!participant?.isHost) return;
+      socket.to(data.roomId).emit("host-muted-you");
+    });
+
+    // Host: admit from waiting room
+    socket.on("admit-participant", (data: { roomId: string; waitingSocketId: string }) => {
+      const room = rooms.get(data.roomId);
+      if (!room) return;
+      const participant = room.participants.get(socket.id);
+      if (!participant?.isHost) return;
+      const idx = room.waitingRoom.findIndex(s => s.id === data.waitingSocketId);
+      if (idx !== -1) {
+        const waitingSocket = room.waitingRoom.splice(idx, 1)[0];
+        waitingSocket.emit("admitted");
+      }
+    });
+
+    // Host: deny from waiting room
+    socket.on("deny-participant", (data: { roomId: string; waitingSocketId: string }) => {
+      const room = rooms.get(data.roomId);
+      if (!room) return;
+      const participant = room.participants.get(socket.id);
+      if (!participant?.isHost) return;
+      const idx = room.waitingRoom.findIndex(s => s.id === data.waitingSocketId);
+      if (idx !== -1) {
+        const waitingSocket = room.waitingRoom.splice(idx, 1)[0];
+        waitingSocket.emit("denied-entry");
+      }
+    });
+
+    // Host: end meeting for all
     socket.on("end-meeting", (data: { roomId: string }) => {
       const room = rooms.get(data.roomId);
       if (!room) return;
-      const participant = room.get(socket.id);
+      const participant = room.participants.get(socket.id);
       if (!participant?.isHost) return;
 
       io.to(data.roomId).emit("meeting-ended");
-      // Clean up room
       rooms.delete(data.roomId);
     });
 
-    // Host controls: remove participant
+    // Host: remove participant
     socket.on("remove-participant", (data: { roomId: string; targetSocketId: string }) => {
       const room = rooms.get(data.roomId);
       if (!room) return;
-      const participant = room.get(socket.id);
+      const participant = room.participants.get(socket.id);
       if (!participant?.isHost) return;
       if (!data.targetSocketId || typeof data.targetSocketId !== "string") return;
 
@@ -217,10 +320,9 @@ export function setupSocketIO(httpServer: HttpServer) {
       if (targetSocket) {
         targetSocket.leave(data.roomId);
       }
-      const removed = room.get(data.targetSocketId);
-      room.delete(data.targetSocketId);
+      const removed = room.participants.get(data.targetSocketId);
+      room.participants.delete(data.targetSocketId);
 
-      // Notify others
       io.to(data.roomId).emit("participant-left", {
         socketId: data.targetSocketId,
         displayName: removed?.displayName || "Unknown",
@@ -233,17 +335,17 @@ export function setupSocketIO(httpServer: HttpServer) {
       const room = rooms.get(currentRoom);
       if (!room) return;
 
-      const participant = room.get(socket.id);
-      room.delete(socket.id);
+      const participant = room.participants.get(socket.id);
+      room.participants.delete(socket.id);
+      // Also remove from waiting room if present
+      room.waitingRoom = room.waitingRoom.filter(s => s.id !== socket.id);
 
-      // Notify others
       socket.to(currentRoom).emit("participant-left", {
         socketId: socket.id,
         displayName: participant?.displayName || "Unknown",
       });
 
-      // Clean up empty rooms
-      if (room.size === 0) {
+      if (room.participants.size === 0) {
         rooms.delete(currentRoom);
       }
     });
@@ -253,8 +355,8 @@ export function setupSocketIO(httpServer: HttpServer) {
       const room = rooms.get(data.roomId);
       if (!room) return;
 
-      const participant = room.get(socket.id);
-      room.delete(socket.id);
+      const participant = room.participants.get(socket.id);
+      room.participants.delete(socket.id);
       socket.leave(data.roomId);
       currentRoom = null;
 
@@ -263,7 +365,7 @@ export function setupSocketIO(httpServer: HttpServer) {
         displayName: participant?.displayName || "Unknown",
       });
 
-      if (room.size === 0) {
+      if (room.participants.size === 0) {
         rooms.delete(data.roomId);
       }
     });

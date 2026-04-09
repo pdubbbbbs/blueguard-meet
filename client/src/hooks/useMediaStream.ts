@@ -22,7 +22,7 @@ export function useMediaStream() {
         } catch {
           setVideoEnabled(false);
           setAudioEnabled(false);
-          setError("No camera or microphone available. You can still join.");
+          setError("Camera/mic denied. Use the toggle buttons to enable them.");
           return null;
         }
       }
@@ -30,28 +30,82 @@ export function useMediaStream() {
       setStream(mediaStream);
       setError(null);
       return mediaStream;
-    } catch (err: any) {
+    } catch {
       setError("Failed to access media devices.");
       return null;
     }
   }, []);
 
-  const toggleAudio = useCallback(() => {
-    if (!streamRef.current) return;
-    const tracks = streamRef.current.getAudioTracks();
-    for (const track of tracks) {
-      track.enabled = !track.enabled;
+  const toggleAudio = useCallback(async () => {
+    const current = streamRef.current;
+
+    // If we have audio tracks, just toggle them
+    if (current) {
+      const tracks = current.getAudioTracks();
+      if (tracks.length > 0) {
+        for (const track of tracks) {
+          track.enabled = !track.enabled;
+        }
+        setAudioEnabled(tracks[0].enabled);
+        return;
+      }
     }
-    setAudioEnabled(tracks.length > 0 ? tracks[0].enabled : false);
+
+    // No audio tracks — request mic permission
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const audioTrack = newStream.getAudioTracks()[0];
+      if (audioTrack) {
+        if (current) {
+          current.addTrack(audioTrack);
+        } else {
+          streamRef.current = newStream;
+          setStream(newStream);
+        }
+        setAudioEnabled(true);
+        setError(null);
+      }
+    } catch {
+      setError("Mic access denied. Check browser site settings.");
+    }
   }, []);
 
-  const toggleVideo = useCallback(() => {
-    if (!streamRef.current) return;
-    const tracks = streamRef.current.getVideoTracks();
-    for (const track of tracks) {
-      track.enabled = !track.enabled;
+  const toggleVideo = useCallback(async () => {
+    const current = streamRef.current;
+
+    // If we have video tracks, just toggle them
+    if (current) {
+      const tracks = current.getVideoTracks();
+      if (tracks.length > 0) {
+        for (const track of tracks) {
+          track.enabled = !track.enabled;
+        }
+        setVideoEnabled(tracks[0].enabled);
+        return;
+      }
     }
-    setVideoEnabled(tracks.length > 0 ? tracks[0].enabled : false);
+
+    // No video tracks — request camera permission
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      const videoTrack = newStream.getVideoTracks()[0];
+      if (videoTrack) {
+        if (current) {
+          current.addTrack(videoTrack);
+        } else {
+          streamRef.current = newStream;
+          setStream(newStream);
+        }
+        setVideoEnabled(true);
+        setError(null);
+      }
+    } catch {
+      setError("Camera access denied. Check browser site settings.");
+    }
   }, []);
 
   const stopStream = useCallback(() => {

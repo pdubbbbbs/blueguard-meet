@@ -93,24 +93,30 @@ export default function MeetingRoom() {
     };
   }, [socket, chatOpen]);
 
-  // Meeting ended / removed
+  // Meeting ended / removed / muted by host
   useEffect(() => {
     const handleMeetingEnded = () => setMeetingEnded(true);
     const handleRemoved = () => setRemoved(true);
-    const handleRoomFull = () => {
-      navigate("/");
+    const handleRoomFull = () => navigate("/");
+    const handleHostMuted = () => {
+      // Host muted us — disable our audio track
+      if (audioEnabled) {
+        toggleAudio();
+      }
     };
 
     socket.on("meeting-ended", handleMeetingEnded);
     socket.on("removed-from-meeting", handleRemoved);
     socket.on("room-full", handleRoomFull);
+    socket.on("host-muted-you", handleHostMuted);
 
     return () => {
       socket.off("meeting-ended", handleMeetingEnded);
       socket.off("removed-from-meeting", handleRemoved);
       socket.off("room-full", handleRoomFull);
+      socket.off("host-muted-you", handleHostMuted);
     };
-  }, [socket, navigate]);
+  }, [socket, navigate, audioEnabled, toggleAudio]);
 
   // Notify media state changes
   useEffect(() => {
@@ -308,6 +314,7 @@ export default function MeetingRoom() {
               participants={participantList}
               onRemoveParticipant={isHost ? handleRemoveParticipant : undefined}
               onEndMeeting={isHost ? handleEndMeeting : undefined}
+              socket={socket}
             />
           </div>
         )}
