@@ -10,6 +10,7 @@ import { ControlsBar } from "@/components/ControlsBar";
 import { MeetingSettings } from "@/components/MeetingSettings";
 import { Shield, AlertCircle, ShieldCheck, Maximize, Minimize, Hand } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import type { ChatMessage } from "@shared/types";
 
 export default function MeetingRoom() {
@@ -92,7 +93,10 @@ export default function MeetingRoom() {
     const handleMeetingEnded = () => setMeetingEnded(true);
     const handleRemoved = () => setRemoved(true);
     const handleRoomFull = () => navigate("/");
-    const handleHostMuted = () => { if (audioEnabled) toggleAudio(); };
+    const handleHostMuted = () => {
+      if (audioEnabled) toggleAudio();
+      toast.info("The host muted your microphone");
+    };
 
     // Hand raise from other participants
     const handleHandRaise = (data: { socketId: string; raised: boolean }) => {

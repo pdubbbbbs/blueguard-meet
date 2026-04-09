@@ -8,7 +8,7 @@ import Home from "./pages/Home";
 import Lobby from "./pages/Lobby";
 import MeetingRoom from "./pages/MeetingRoom";
 import JoinRedirect from "./pages/JoinRedirect";
-import Settings from "./pages/Settings";
+// Settings page disabled — admin controls are in-meeting now
 import GalleryPopout from "./pages/GalleryPopout";
 
 function Router() {
@@ -19,7 +19,6 @@ function Router() {
       <Route path="/meeting/:roomId" component={MeetingRoom} />
       <Route path="/join/:roomId" component={JoinRedirect} />
       <Route path="/gallery/:roomId" component={GalleryPopout} />
-      <Route path="/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

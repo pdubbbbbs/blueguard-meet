@@ -48,11 +48,11 @@ async function startServer() {
       "Content-Security-Policy",
       [
         "default-src 'self'",
-        "script-src 'self' https://plausible.io https://manus-analytics.com",
+        "script-src 'self'",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com",
-        "img-src 'self' data: blob: https://files.manuscdn.com",
-        "connect-src 'self' wss: https://plausible.io https://manus-analytics.com",
+        "img-src 'self' data: blob:",
+        "connect-src 'self' wss:",
         "media-src 'self' blob:",
         "frame-ancestors 'none'",
       ].join("; ")
