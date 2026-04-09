@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1775691346347,
+      "tag": "0000_rapid_nico_minoru",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1775691480631,
+      "tag": "0001_harsh_ink",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775691600000,
+      "tag": "0002_add_host_secret",
+      "breakpoints": true
+    }
+  ]
+}

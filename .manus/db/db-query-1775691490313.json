@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `meetings` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`roomId` varchar(36) NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`hostName` varchar(255) NOT NULL,\n\t`hostUserId` int,\n\t`isActive` boolean NOT NULL DEFAULT true,\n\t`maxParticipants` int NOT NULL DEFAULT 10,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`endedAt` timestamp,\n\tCONSTRAINT `meetings_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `meetings_roomId_unique` UNIQUE(`roomId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2jWVcgZWjz2Ux7J.5ae2ed38c8d7 --database fR83N53xSXPwdaTjrfrhLN --execute CREATE TABLE `meetings` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`roomId` varchar(36) NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`hostName` varchar(255) NOT NULL,\n\t`hostUserId` int,\n\t`isActive` boolean NOT NULL DEFAULT true,\n\t`maxParticipants` int NOT NULL DEFAULT 10,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`endedAt` timestamp,\n\tCONSTRAINT `meetings_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `meetings_roomId_unique` UNIQUE(`roomId`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 176
+}
