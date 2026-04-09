@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Socket } from "socket.io-client";
+import { DeviceSelector } from "./DeviceSelector";
 import {
   X,
   Copy,
@@ -20,6 +21,8 @@ import {
   ShieldCheck,
   UserCheck,
   UserMinus,
+  ExternalLink,
+  Settings2,
 } from "lucide-react";
 
 interface Participant {
@@ -66,7 +69,7 @@ export function MeetingSettings({
   startedAt,
 }: MeetingSettingsProps) {
   const [copied, setCopied] = useState(false);
-  const [tab, setTab] = useState<"participants" | "controls" | "info">("participants");
+  const [tab, setTab] = useState<"participants" | "controls" | "devices" | "info">("participants");
   const [locked, setLocked] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -169,6 +172,15 @@ export function MeetingSettings({
             Controls
           </button>
         )}
+        <button
+          onClick={() => setTab("devices")}
+          className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+            tab === "devices" ? "text-blue-400 border-b-2 border-blue-400" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <Settings2 className="w-3 h-3" />
+          Devices
+        </button>
         <button
           onClick={() => setTab("info")}
           className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
@@ -342,6 +354,65 @@ export function MeetingSettings({
                   {chatEnabled ? "Enabled" : "Disabled"}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "devices" && (
+          <div className="p-3 space-y-4">
+            <DeviceSelector
+              onSelectCamera={async (deviceId) => {
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: { exact: deviceId } },
+                  });
+                  // Emit event for MeetingRoom to handle
+                  window.dispatchEvent(new CustomEvent("device-change", {
+                    detail: { type: "camera", stream, deviceId },
+                  }));
+                } catch { /* denied */ }
+              }}
+              onSelectMic={async (deviceId) => {
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: { deviceId: { exact: deviceId } },
+                  });
+                  window.dispatchEvent(new CustomEvent("device-change", {
+                    detail: { type: "mic", stream, deviceId },
+                  }));
+                } catch { /* denied */ }
+              }}
+              onSelectSpeaker={(deviceId) => {
+                // Set audio output on all video elements
+                document.querySelectorAll("video").forEach((v: any) => {
+                  if (v.setSinkId) v.setSinkId(deviceId).catch(() => {});
+                });
+              }}
+            />
+
+            {/* Pop-out gallery to second monitor */}
+            <div className="pt-3 border-t border-blue-500/10">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+                Multi-Display
+              </label>
+              <button
+                onClick={() => {
+                  const w = window.screen.width;
+                  const h = window.screen.height;
+                  window.open(
+                    `/gallery/${roomId}`,
+                    "blueguard-gallery",
+                    `width=${w},height=${h},menubar=no,toolbar=no,location=no,status=no`
+                  );
+                }}
+                className="mt-2 w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-blue-500/10 hover:bg-white/10 transition-colors"
+              >
+                <ExternalLink className="w-5 h-5 text-blue-400" />
+                <div className="text-left">
+                  <div className="text-sm font-medium text-white">Pop Out Gallery</div>
+                  <div className="text-[11px] text-slate-500">Open participant grid in a separate window for your second monitor</div>
+                </div>
+              </button>
             </div>
           </div>
         )}

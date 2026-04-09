@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { MicOff, VideoOff, Crown, Hand, Pin } from "lucide-react";
+import { useEffect, useRef, useCallback } from "react";
+import { MicOff, VideoOff, Crown, Hand, Pin, PictureInPicture2 } from "lucide-react";
 
 interface VideoTileProps {
   stream?: MediaStream;
@@ -95,6 +95,21 @@ export function VideoTile({
           )}
         </div>
       </div>
+
+      {/* PiP button */}
+      {stream && videoEnabled && !isLocal && (
+        <button
+          onClick={() => {
+            if (videoRef.current && document.pictureInPictureEnabled) {
+              videoRef.current.requestPictureInPicture().catch(() => {});
+            }
+          }}
+          className="absolute top-2 left-10 opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-md bg-black/50 text-white hover:bg-blue-500/30 flex items-center justify-center"
+          title="Picture-in-Picture"
+        >
+          <PictureInPicture2 className="w-3.5 h-3.5" />
+        </button>
+      )}
 
       {/* Remove button (host only) */}
       {showRemove && !isLocal && onRemove && (

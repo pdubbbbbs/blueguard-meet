@@ -176,6 +176,43 @@ export default function MeetingRoom() {
     }
   }, [audioEnabled, videoEnabled, connected, socket, roomId]);
 
+  // BroadcastChannel — sync participant list to pop-out gallery window
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    const channel = new BroadcastChannel(`blueguard-meet-${roomId}`);
+    channelRef.current = channel;
+
+    channel.onmessage = (event) => {
+      if (event.data.type === "request-state") {
+        // Gallery window requesting initial state — will be sent in the update below
+      }
+    };
+
+    return () => channel.close();
+  }, [roomId]);
+
+  // Push updates to gallery window whenever participants change
+  useEffect(() => {
+    if (channelRef.current) {
+      channelRef.current.postMessage({
+        type: "participants-update",
+        data: {
+          title: meeting?.title || "Meeting",
+          participants: participantList.map(p => ({
+            id: p.id,
+            displayName: p.displayName,
+            isHost: p.isHost,
+            audioEnabled: p.audioEnabled,
+            videoEnabled: p.videoEnabled,
+            isLocal: p.isLocal,
+            // Note: MediaStream can't be sent via BroadcastChannel
+            // Gallery popout shows avatars only (no video streams)
+          })),
+        },
+      });
+    }
+  });
+
   // Screen sharing
   const handleToggleScreenShare = useCallback(async () => {
     if (isScreenSharing && screenStream) {

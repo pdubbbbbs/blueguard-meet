@@ -9,6 +9,7 @@ import Lobby from "./pages/Lobby";
 import MeetingRoom from "./pages/MeetingRoom";
 import JoinRedirect from "./pages/JoinRedirect";
 import Settings from "./pages/Settings";
+import GalleryPopout from "./pages/GalleryPopout";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/lobby/:roomId" component={Lobby} />
       <Route path="/meeting/:roomId" component={MeetingRoom} />
       <Route path="/join/:roomId" component={JoinRedirect} />
+      <Route path="/gallery/:roomId" component={GalleryPopout} />
       <Route path="/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
